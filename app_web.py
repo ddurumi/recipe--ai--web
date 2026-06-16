@@ -1,5 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
+from streamlit_gsheets import GSheetsConnection
 
 # 1. 화면 기본 설정
 st.set_page_config(page_title="냉파 AI 셰프", page_icon="🍳", layout="centered")
@@ -8,12 +9,21 @@ st.set_page_config(page_title="냉파 AI 셰프", page_icon="🍳", layout="cent
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 genai.configure(api_key=GOOGLE_API_KEY)
 
+# 🧠 만능 열쇠(JSON) 대신, 주소(URL)를 이용해 구글 스프레드시트 DB 초간단 연결하기
+try:
+    # 금고에 등록한 GOOGLE_SHEET_URL 주소를 기반으로 스프레드시트를 연결합니다.
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(spreadsheet=st.secrets["GOOGLE_SHEET_URL"], ttl=0)
+except Exception as e:
+    st.error(f"데이터베이스 연결에 실패했습니다. 비밀 금고(Secrets) 설정을 확인해 주세요: {e}")
+    df = None
+
 # 3. 메인 타이틀
 st.title("🍳 맞춤형 냉파 AI 셰프 & 레시피 상담소")
 st.markdown("냉장고 재료로 레시피를 추천받고, 궁금한 점은 아래 채팅창에서 바로 셰프에게 물어보세요!")
 st.markdown("---")
 
-# === 🧠 핵심: 세션 상태(메모리) 초기화 ===
+# === 세션 상태(메모리) 초기화 ===
 if "recipe" not in st.session_state:
     st.session_state.recipe = None
 if "chat_session" not in st.session_state:
@@ -22,9 +32,6 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
-# ✨ 추가: 요리 일기장(사진+날짜) 기록을 임시 저장할 메모리 공간
-if "diary" not in st.session_state:
-    st.session_state.diary = []
 
 # 4. 입력 영역
 col1, col2 = st.columns([2, 1])
@@ -70,7 +77,6 @@ if submit_button:
                 st.session_state.chat_session = chat
                 st.session_state.chat_history = [] 
                 
-                # AI가 지어준 '요리 이름' 추출
                 dish_name = user_ingredients 
                 for line in response.text.split('\n'):
                     if "요리 이름:" in line:
@@ -95,7 +101,6 @@ if st.session_state.recipe:
     
     st.markdown("---")
     st.subheader("💬 AI 셰프에게 추가 질문하기")
-    st.caption("레시피에 대해 궁금한 점이나, '고기 대신 참치를 넣어도 돼?' 같은 응용 질문을 던져보세요!")
     
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
@@ -113,36 +118,43 @@ if st.session_state.recipe:
         
         st.session_state.chat_history.append({"role": "ai", "content": ai_response.text})
 
-# 7. ✨ 핵심 추가 기능: 📸 나만의 요리 일기장 (갤러리)
+# 7. 📝 나만의 요리 기록장 (Google Sheets DB 영구 연동 - URL 방식)
 st.markdown("---")
-st.subheader("📸 나만의 요리 캘린더 (일기장)")
-st.caption("오늘 직접 만든 요리 사진을 업로드하고 기록해 보세요! (현재 프로토타입 버전으로 새로고침 시 초기화됩니다)")
+st.subheader("📝 나만의 요리 기록장 (영구 저장 DB)")
+st.caption("오늘 추천받아 만든 요리를 기록해 보세요! 구글 스프레드시트에 안전하게 보관되어 새로고침해도 지워지지 않습니다.")
 
-# 사진 업로드 및 날짜 선택 UI
-col_date, col_img = st.columns([1, 2])
+col_date, col_star = st.columns(2)
 with col_date:
     selected_date = st.date_input("📅 요리한 날짜 선택")
-with col_img:
-    uploaded_image = st.file_uploader("📷 완성된 요리 사진 업로드", type=["png", "jpg", "jpeg"])
+with col_star:
+    star_rating = st.selectbox("⭐ 요리 만족도 별점", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"])
 
-if st.button("💾 내 일기장에 저장하기", use_container_width=True):
-    if uploaded_image is not None:
-        # 업로드한 사진과 날짜, 요리 이름을 메모리에 저장
-        dish_title = st.session_state.search_query if st.session_state.search_query else "내가 만든 요리"
-        st.session_state.diary.append({
-            "date": selected_date,
-            "image": uploaded_image,
-            "title": dish_title
-        })
-        st.success(f"'{dish_title}' 기록이 일기장에 저장되었습니다!")
+user_review = st.text_input("✍️ 맛 평가 및 한줄평을 적어주세요", placeholder="예: 진짜 백종원 맛이 나요! 최고최고")
+
+if st.button("💾 구글 데이터베이스에 영구 저장", use_container_width=True):
+    if df is not None:
+        current_dish = st.session_state.search_query if st.session_state.search_query else "추천 요리"
+        try:
+            # 주소 기반으로 구글 시트에 실시간 행(Row) 추가를 수행합니다.
+            new_data = {"날짜": str(selected_date), "요리이름": current_dish, "별점": star_rating, "한줄평": user_review}
+            conn.create(spreadsheet=st.secrets["GOOGLE_SHEET_URL"], data=new_data)
+            st.success(f"🎉 '{current_dish}' 기록이 구글 스프레드시트에 영구 저장되었습니다!")
+            st.rerun() # 저장 후 실시간 화면 새로고침
+        except Exception as e:
+            st.error(f"DB 저장 중 에러 발생 (시트 권한을 '링크가 있는 모든 사용자-편집자'로 설정했는지 확인하세요): {e}")
     else:
-        st.warning("먼저 요리 사진을 업로드해 주세요!")
+        st.error("데이터베이스 연결이 비정상적입니다.")
 
-# 갤러리 출력 영역 (저장된 사진이 있을 때만 보임)
-if st.session_state.diary:
-    st.markdown("### 📚 내 요리 갤러리")
-    # 최신 사진이 위로 오도록 역순으로 출력
-    for entry in reversed(st.session_state.diary):
-        st.markdown(f"**[{entry['date']}] {entry['title']}**")
-        st.image(entry['image'], use_container_width=True)
-        st.markdown("<br>", unsafe_allow_html=True)
+# 📊 구글 스프레드시트에서 실시간으로 데이터를 읽어와 하단에 히스토리 리스트 출력
+if df is not None:
+    try:
+        if not df.empty:
+            st.markdown("---")
+            st.markdown("### 📚 나의 누적 요리 히스토리")
+            # 최신 기록이 위로 올라오도록 역순 정렬하여 보여줍니다.
+            for idx, row in df.iloc[::-1].iterrows():
+                st.markdown(f"**[{row['날짜']}] {row['요리이름']}** |  {row['별점']}")
+                st.markdown(f"> {row['한줄평']}")
+                st.markdown("<br>", unsafe_allow_html=True)
+    except Exception as e:
+        pass
