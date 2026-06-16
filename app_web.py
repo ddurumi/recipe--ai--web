@@ -20,6 +20,9 @@ if "chat_session" not in st.session_state:
     st.session_state.chat_session = None
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+# ✨ 추가: 유튜브 검색용 키워드 저장을 위한 세션
+if "search_query" not in st.session_state:
+    st.session_state.search_query = ""
 
 # 4. 입력 영역
 col1, col2 = st.columns([2, 1])
@@ -41,12 +44,11 @@ if submit_button:
     if user_ingredients:
         with st.spinner(f"AI 셰프가 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
-                # 🚨 에러를 해결했던 최신 모델명 적용
+                # 최신 모델명 적용
                 model = genai.GenerativeModel('gemini-3.5-flash')
                 
                 chat = model.start_chat(history=[])
                 
-                # ✨ 핵심 업그레이드: 주류/음료 페어링 조건을 프롬프트에 주입!
                 prompt = f"""
                 너는 대한민국 백종원 스타일의 대중적이고 검증된 요리 전문가야. 
                 사용자가 제시한 재료 [{user_ingredients}]를 바탕으로, 반드시 [{cooking_style}] 스타일에 어울리는 현실적인 레시피를 추천해줘.
@@ -68,6 +70,9 @@ if submit_button:
                 st.session_state.chat_session = chat
                 st.session_state.chat_history = [] 
                 
+                # ✨ 추가: 나중에 유튜브 버튼에서 쓸 수 있도록 입력한 재료를 메모리에 저장
+                st.session_state.search_query = user_ingredients
+                
             except Exception as e:
                 st.error(f"에러가 발생했습니다: {e}")
     else:
@@ -78,6 +83,11 @@ if st.session_state.recipe:
     st.success("🎉 완벽한 레시피를 찾았습니다!")
     with st.container():
         st.info(st.session_state.recipe)
+        
+        # ✨ 핵심 업그레이드: 유튜브 영상 검색 버튼 추가
+        # 사용자가 입력한 재료 + '요리 레시피'라는 단어를 조합해 유튜브 검색 링크 자동 생성
+        youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 요리 레시피"
+        st.link_button("📺 이 요리 유튜브 영상으로 확인하기", youtube_url, use_container_width=True)
     
     st.markdown("---")
     st.subheader("💬 AI 셰프에게 추가 질문하기")
