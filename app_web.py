@@ -44,7 +44,8 @@ if submit_button:
         with st.spinner(f"AI 셰프가 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
                 # 모델 설정
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # 수정 후
+                model = genai.GenerativeModel('gemini-3.5-flash')
                 
                 # 일반 생성이 아닌 '채팅 모드(start_chat)'로 AI를 실행하여 문맥을 기억하게 만듭니다.
                 chat = model.start_chat(history=[])
