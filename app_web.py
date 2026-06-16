@@ -22,6 +22,9 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
+# ✨ 추가: 요리 일기장(사진+날짜) 기록을 임시 저장할 메모리 공간
+if "diary" not in st.session_state:
+    st.session_state.diary = []
 
 # 4. 입력 영역
 col1, col2 = st.columns([2, 1])
@@ -43,9 +46,7 @@ if submit_button:
     if user_ingredients:
         with st.spinner(f"AI 셰프가 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
-                # 최신 모델명 적용
                 model = genai.GenerativeModel('gemini-3.5-flash')
-                
                 chat = model.start_chat(history=[])
                 
                 prompt = f"""
@@ -69,15 +70,13 @@ if submit_button:
                 st.session_state.chat_session = chat
                 st.session_state.chat_history = [] 
                 
-                # ✨ 핵심 업그레이드: AI가 지어준 '요리 이름'만 텍스트에서 쏙 뽑아내기!
-                dish_name = user_ingredients # 만약 추출에 실패하면 기본 재료로 검색
+                # AI가 지어준 '요리 이름' 추출
+                dish_name = user_ingredients 
                 for line in response.text.split('\n'):
                     if "요리 이름:" in line:
-                        # '요리 이름:' 글자 뒤에 있는 진짜 음식명만 자르고, 마크다운 별표(*)나 공백을 깔끔하게 지워줍니다.
                         dish_name = line.split("요리 이름:")[1].replace("*", "").strip()
-                        break # 이름을 찾았으니 더 이상 읽을 필요 없이 반복문 종료
+                        break 
                 
-                # 이제 지저분한 재료가 아닌, 깔끔한 음식 이름이 검색창으로 넘어갑니다.
                 st.session_state.search_query = dish_name
                 
             except Exception as e:
@@ -91,7 +90,6 @@ if st.session_state.recipe:
     with st.container():
         st.info(st.session_state.recipe)
         
-        # 유튜브 검색 링크 (정확한 요리 이름 뒤에 '만들기'라는 단어를 붙여 더 정확한 레시피 영상을 찾습니다)
         youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
         st.link_button(f"📺 '{st.session_state.search_query}' 유튜브 영상으로 확인하기", youtube_url, use_container_width=True)
     
@@ -114,3 +112,37 @@ if st.session_state.recipe:
                 st.markdown(ai_response.text)
         
         st.session_state.chat_history.append({"role": "ai", "content": ai_response.text})
+
+# 7. ✨ 핵심 추가 기능: 📸 나만의 요리 일기장 (갤러리)
+st.markdown("---")
+st.subheader("📸 나만의 요리 캘린더 (일기장)")
+st.caption("오늘 직접 만든 요리 사진을 업로드하고 기록해 보세요! (현재 프로토타입 버전으로 새로고침 시 초기화됩니다)")
+
+# 사진 업로드 및 날짜 선택 UI
+col_date, col_img = st.columns([1, 2])
+with col_date:
+    selected_date = st.date_input("📅 요리한 날짜 선택")
+with col_img:
+    uploaded_image = st.file_uploader("📷 완성된 요리 사진 업로드", type=["png", "jpg", "jpeg"])
+
+if st.button("💾 내 일기장에 저장하기", use_container_width=True):
+    if uploaded_image is not None:
+        # 업로드한 사진과 날짜, 요리 이름을 메모리에 저장
+        dish_title = st.session_state.search_query if st.session_state.search_query else "내가 만든 요리"
+        st.session_state.diary.append({
+            "date": selected_date,
+            "image": uploaded_image,
+            "title": dish_title
+        })
+        st.success(f"'{dish_title}' 기록이 일기장에 저장되었습니다!")
+    else:
+        st.warning("먼저 요리 사진을 업로드해 주세요!")
+
+# 갤러리 출력 영역 (저장된 사진이 있을 때만 보임)
+if st.session_state.diary:
+    st.markdown("### 📚 내 요리 갤러리")
+    # 최신 사진이 위로 오도록 역순으로 출력
+    for entry in reversed(st.session_state.diary):
+        st.markdown(f"**[{entry['date']}] {entry['title']}**")
+        st.image(entry['image'], use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
