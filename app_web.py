@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import google.generativeai as genai
 from streamlit_gsheets import GSheetsConnection
 
@@ -134,14 +135,31 @@ user_review = st.text_input("✍️ 맛 평가 및 한줄평을 적어주세요"
 if st.button("💾 구글 데이터베이스에 영구 저장", use_container_width=True):
     if df is not None:
         current_dish = st.session_state.search_query if st.session_state.search_query else "추천 요리"
+
         try:
-            # 주소 기반으로 구글 시트에 실시간 행(Row) 추가를 수행합니다.
-            new_data = {"날짜": str(selected_date), "요리이름": current_dish, "별점": star_rating, "한줄평": user_review}
-            conn.create(spreadsheet=st.secrets["GOOGLE_SHEET_URL"], data=new_data)
-            st.success(f"🎉 '{current_dish}' 기록이 구글 스프레드시트에 영구 저장되었습니다!")
-            st.rerun() # 저장 후 실시간 화면 새로고침
+            new_data = {
+                "날짜": str(selected_date),
+                "요리이름": current_dish,
+                "별점": star_rating,
+                "한줄평": user_review
+            }
+
+            updated_df = pd.concat(
+                [df, pd.DataFrame([new_data])],
+                ignore_index=True
+            )
+
+            conn.update(
+                spreadsheet=st.secrets["GOOGLE_SHEET_URL"],
+                data=updated_df
+            )
+
+            st.success(f"🎉 '{current_dish}' 기록이 저장되었습니다!")
+            st.rerun()
+
         except Exception as e:
-            st.error(f"DB 저장 중 에러 발생 (시트 권한을 '링크가 있는 모든 사용자-편집자'로 설정했는지 확인하세요): {e}")
+            st.error(f"DB 저장 실패: {e}")
+
     else:
         st.error("데이터베이스 연결이 비정상적입니다.")
 
