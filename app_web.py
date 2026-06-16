@@ -20,7 +20,6 @@ if "chat_session" not in st.session_state:
     st.session_state.chat_session = None
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-# ✨ 추가: 유튜브 검색용 키워드 저장을 위한 세션
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 
@@ -70,8 +69,16 @@ if submit_button:
                 st.session_state.chat_session = chat
                 st.session_state.chat_history = [] 
                 
-                # ✨ 추가: 나중에 유튜브 버튼에서 쓸 수 있도록 입력한 재료를 메모리에 저장
-                st.session_state.search_query = user_ingredients
+                # ✨ 핵심 업그레이드: AI가 지어준 '요리 이름'만 텍스트에서 쏙 뽑아내기!
+                dish_name = user_ingredients # 만약 추출에 실패하면 기본 재료로 검색
+                for line in response.text.split('\n'):
+                    if "요리 이름:" in line:
+                        # '요리 이름:' 글자 뒤에 있는 진짜 음식명만 자르고, 마크다운 별표(*)나 공백을 깔끔하게 지워줍니다.
+                        dish_name = line.split("요리 이름:")[1].replace("*", "").strip()
+                        break # 이름을 찾았으니 더 이상 읽을 필요 없이 반복문 종료
+                
+                # 이제 지저분한 재료가 아닌, 깔끔한 음식 이름이 검색창으로 넘어갑니다.
+                st.session_state.search_query = dish_name
                 
             except Exception as e:
                 st.error(f"에러가 발생했습니다: {e}")
@@ -84,10 +91,9 @@ if st.session_state.recipe:
     with st.container():
         st.info(st.session_state.recipe)
         
-        # ✨ 핵심 업그레이드: 유튜브 영상 검색 버튼 추가
-        # 사용자가 입력한 재료 + '요리 레시피'라는 단어를 조합해 유튜브 검색 링크 자동 생성
-        youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 요리 레시피"
-        st.link_button("📺 이 요리 유튜브 영상으로 확인하기", youtube_url, use_container_width=True)
+        # 유튜브 검색 링크 (정확한 요리 이름 뒤에 '만들기'라는 단어를 붙여 더 정확한 레시피 영상을 찾습니다)
+        youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
+        st.link_button(f"📺 '{st.session_state.search_query}' 유튜브 영상으로 확인하기", youtube_url, use_container_width=True)
     
     st.markdown("---")
     st.subheader("💬 AI 셰프에게 추가 질문하기")
