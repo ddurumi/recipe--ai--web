@@ -79,7 +79,7 @@ if submit_button:
 
                 # GPT-3.5-turbo 모델 사용
                 response = client.chat.completions.create(
-                    model="model="gpt-4o-mini",
+                    model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}]
                 )
 
