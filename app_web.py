@@ -44,7 +44,7 @@ with col2:
     st.subheader("🔥 요리 스타일")
     cooking_style = st.selectbox("어떤 스타일을 원하시나요?", ["초간단 자취생 요리", "건강한 다이어트식", "매콤한 술안주", "든든한 밥도둑"])
 
-# 🚫 알레르기 및 기피 재료 입력창 추가
+# 🚫 알레르기 및 기피 재료 입력창
 st.subheader("🚫 알레르기 및 기피 재료 (선택)")
 user_allergies = st.text_input("절대 들어가면 안 되는 재료가 있다면 적어주세요.", placeholder="예: 오이, 땅콩, 갑각류 등")
 
@@ -60,20 +60,30 @@ if submit_button:
     if user_ingredients:
         with st.spinner(f"AI 셰프가 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
-                # 사용자가 알레르기 재료를 입력했을 때만 경고문을 추가하는 로직
-                allergy_warning = f"\n                5. 🚨 [알레르기/기피 재료 경고] 사용자가 제외하라고 요청한 재료인 [{user_allergies}]는 조리 과정이나 양념, 완성품 등 어떤 형태로든 요리에 절대 들어가서는 안 된다." if user_allergies else ""
+                # 알레르기 경고를 독립적이고 강력한 블록으로 분리하여 프롬프트 최상단에 주입
+                allergy_block = ""
+                if user_allergies:
+                    allergy_block = f"""
+                [🚫 초강력 알레르기/기피 재료 절대 금지 경고 🚫]
+                - 사용자가 절대 먹으면 안 되는 재료: [{user_allergies}]
+                - 위 재료는 주재료, 부재료, 소스, 육수, 가니쉬 등 요리의 '모든 과정'에서 100% 완벽하게 배제해라.
+                - 만약 저 재료가 필수로 들어가는 요리라면, 아예 다른 메뉴를 추천하거나 안전한 대체 식재료를 사용해라.
+                - 네가 출력하는 레시피 텍스트 안에 '{user_allergies}'라는 단어가 식재료로서 단 한 번이라도 등장하면 안 된다.
+                    """
 
                 prompt = f"""
                 너는 대한민국 백종원 스타일의 대중적이고 검증된 요리 전문가야.
+                {allergy_block}
+
                 사용자가 제시한 재료 [{user_ingredients}]를 바탕으로
                 반드시 [{cooking_style}] 스타일에 어울리는 현실적인 레시피를 추천해줘.
                 절대로 세상에 없는 괴식이나 실험적인 요리를 창작하면 안 돼.
 
                 [가장 중요한 규칙: 실존하는 레시피 제공]
                 1. 절대로 새로운 요리를 창작하거나 실험적인 조합을 만들지 마라.
-                2. 네가 제안할 요리는 반드시 네이버 블로그, 만개의 레시피, 또는 백종원 요리 유튜브에 **실제 수없이 검색되고 존재하는 대중적인 표준 레시피**여야만 한다.
-                3. 사용자가 제시한 재료 [{user_ingredients}] 중 '주재료'가 될 만한 것을 고르고, 그 주재료로 만들 수 있는 가장 대표적인 실존 메뉴를 선정해라. 
-                4. 제시된 재료 중 해당 요리의 정석 레시피와 도저히 어울리지 않는 재료가 있다면, 요리에 억지로 넣지 말고 과감히 제외해라.{allergy_warning}
+                2. 네가 제안할 요리는 반드시 네이버 블로그, 만개의 레시피, 또는 백종원 요리 유튜브에 실제 수없이 검색되고 존재하는 대중적인 표준 레시피여야만 한다.
+                3. 사용자가 제시한 재료 중 '주재료'가 될 만한 것을 고르고, 그 주재료로 만들 수 있는 가장 대표적인 실존 메뉴를 선정해라. 
+                4. 제시된 재료 중 해당 요리의 정석 레시피와 도저히 어울리지 않는 재료가 있다면, 요리에 억지로 넣지 말고 과감히 제외해라.
                 
                 [중요 지시사항]
                 - 요리 초보자도 완벽하게 따라 할 수 있도록 '조리 순서'를 아주아주 상세하고 길게 설명해 줘. (예: 불 조절, 볶는 시간 등 구체적으로)
@@ -93,7 +103,7 @@ if submit_button:
                 - 조리 순서: (1번, 2번... 단계별로 아주 구체적이고 길게 설명)
                 """
 
-                # 최신 GPT-4o-mini 모델 사용
+                # 최신 고성능 gpt-4o-mini 모델 사용 (오타 수정 완료)
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}]
@@ -106,6 +116,7 @@ if submit_button:
                     {"role": "assistant", "content": st.session_state.recipe}
                 ]
 
+                # 간결해진 요리 이름을 찾아서 검색 쿼리로 지정
                 dish_name = user_ingredients
                 for line in st.session_state.recipe.split("\n"):
                     if "요리 이름:" in line:
@@ -143,7 +154,7 @@ if st.session_state.recipe:
             st.markdown(user_question)
         st.session_state.chat_history.append({"role": "user", "content": user_question})
 
-        # OpenAI 답변 요청 (채팅도 gpt-4o-mini로 통일)
+        # OpenAI 답변 요청 (채팅도 gpt-4o-mini 모델로 통일)
         with st.chat_message("ai"):
             with st.spinner("AI 셰프가 답변을 작성 중입니다..."):
                 chat_response = client.chat.completions.create(
