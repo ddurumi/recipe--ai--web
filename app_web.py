@@ -162,8 +162,22 @@ if st.session_state.recipe:
     
     with st.container():
         st.info(st.session_state.recipe)
-        youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
-        st.link_button(f"📺 '{st.session_state.search_query}' 유튜브 영상으로 확인하기", youtube_url, use_container_width=True)
+        
+        # 👇 추가된 부분: 유튜브 검색 버튼과 레시피 다운로드 버튼을 나란히 배치 👇
+        col_yt, col_dl = st.columns(2)
+        with col_yt:
+            youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
+            st.link_button(f"📺 유튜브 영상 검색", youtube_url, use_container_width=True)
+        with col_dl:
+            # Streamlit의 다운로드 버튼 위젯 사용
+            st.download_button(
+                label="💾 이 레시피 파일로 저장하기 (.txt)",
+                data=st.session_state.recipe,
+                file_name=f"{st.session_state.search_query}_레시피.txt",
+                mime="text/plain",
+                use_container_width=True
+            )
+        # 👆 여기까지 👆
 
     st.markdown("---")
     st.subheader("💬 AI 셰프에게 추가 질문하기")
