@@ -6,7 +6,7 @@ import os
 # 1. 화면 기본 설정
 st.set_page_config(page_title="냉파 AI 셰프", page_icon="🍳", layout="centered")
 
-# 2. OpenAI API 키 설정 (제미나이에서 GPT로 변경)
+# 2. OpenAI API 키 설정
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -33,7 +33,7 @@ if "chat_history" not in st.session_state:
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 
-# 입력 영역
+# 4. 입력 영역
 col1, col2 = st.columns([2, 1])
 
 with col1:
@@ -44,6 +44,10 @@ with col2:
     st.subheader("🔥 요리 스타일")
     cooking_style = st.selectbox("어떤 스타일을 원하시나요?", ["초간단 자취생 요리", "건강한 다이어트식", "매콤한 술안주", "든든한 밥도둑"])
 
+# 🚫 알레르기 및 기피 재료 입력창 추가
+st.subheader("🚫 알레르기 및 기피 재료 (선택)")
+user_allergies = st.text_input("절대 들어가면 안 되는 재료가 있다면 적어주세요.", placeholder="예: 오이, 땅콩, 갑각류 등")
+
 st.markdown("---")
 
 _, btn_col, _ = st.columns([1, 2, 1])
@@ -51,34 +55,30 @@ _, btn_col, _ = st.columns([1, 2, 1])
 with btn_col:
     submit_button = st.button("✨ 추천 레시피 탐색 시작", use_container_width=True)
 
-# 레시피 생성 (OpenAI 로직 적용)
+# 5. 레시피 생성 (OpenAI 로직 적용)
 if submit_button:
     if user_ingredients:
         with st.spinner(f"AI 셰프가 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
+                # 사용자가 알레르기 재료를 입력했을 때만 경고문을 추가하는 로직
+                allergy_warning = f"\n                5. 🚨 [알레르기/기피 재료 경고] 사용자가 제외하라고 요청한 재료인 [{user_allergies}]는 조리 과정이나 양념, 완성품 등 어떤 형태로든 요리에 절대 들어가서는 안 된다." if user_allergies else ""
+
                 prompt = f"""
                 너는 대한민국 백종원 스타일의 대중적이고 검증된 요리 전문가야.
                 사용자가 제시한 재료 [{user_ingredients}]를 바탕으로
                 반드시 [{cooking_style}] 스타일에 어울리는 현실적인 레시피를 추천해줘.
                 절대로 세상에 없는 괴식이나 실험적인 요리를 창작하면 안 돼.
 
-                
                 [가장 중요한 규칙: 실존하는 레시피 제공]
                 1. 절대로 새로운 요리를 창작하거나 실험적인 조합을 만들지 마라.
                 2. 네가 제안할 요리는 반드시 네이버 블로그, 만개의 레시피, 또는 백종원 요리 유튜브에 **실제 수없이 검색되고 존재하는 대중적인 표준 레시피**여야만 한다.
                 3. 사용자가 제시한 재료 [{user_ingredients}] 중 '주재료'가 될 만한 것을 고르고, 그 주재료로 만들 수 있는 가장 대표적인 실존 메뉴를 선정해라. 
-                4. 제시된 재료 중 해당 요리의 정석 레시피와 도저히 어울리지 않는 재료가 있다면, 요리에 억지로 넣지 말고 과감히 제외해라.
+                4. 제시된 재료 중 해당 요리의 정석 레시피와 도저히 어울리지 않는 재료가 있다면, 요리에 억지로 넣지 말고 과감히 제외해라.{allergy_warning}
                 
                 [중요 지시사항]
                 - 요리 초보자도 완벽하게 따라 할 수 있도록 '조리 순서'를 아주아주 상세하고 길게 설명해 줘. (예: 불 조절, 볶는 시간 등 구체적으로)
                 - '추천 이유'도 군침이 싹 돌게 아주 풍부하고 맛깔나게 3줄 이상 작성해 줘.
                 - 요리 이름에는 입력된 재료명을 구구절절 나열하지 마라. 식당 메뉴판에 등장하는 '제육볶음', '두부김치', '부대찌개'처럼 **대중적이고 간결한 실제 요리 이름 딱 하나**만 지정해 줘. (예: 삼겹살 김치 대파 두부 볶음 (X) -> 두부김치 (O))
-                
-                
-
-               
-               
-                - '추천 이유'도 군침이 싹 돌게 아주 풍부하고 맛깔나게 3줄 이상 작성해 줘.
                 - 🚨 육회, 생선회처럼 생으로 먹는 재료가 입력되면 절대 가열하거나 볶지 말고 본연의 맛을 살려줘.
                 - 🚨 재료의 상식을 벗어나는 괴식이나 파괴적인 조리법(예: 육회 볶기, 과일 끓이기 등)은 절대 금지!
                 
@@ -93,7 +93,7 @@ if submit_button:
                 - 조리 순서: (1번, 2번... 단계별로 아주 구체적이고 길게 설명)
                 """
 
-                # GPT-3.5-turbo 모델 사용
+                # 최신 GPT-4o-mini 모델 사용
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}]
@@ -119,7 +119,7 @@ if submit_button:
     else:
         st.warning("요리할 재료를 최소 한 개 이상 입력해 주세요!")
 
-# 결과 출력
+# 6. 결과 출력
 if st.session_state.recipe:
     st.success("🎉 완벽한 레시피를 찾았습니다!")
     
@@ -143,11 +143,11 @@ if st.session_state.recipe:
             st.markdown(user_question)
         st.session_state.chat_history.append({"role": "user", "content": user_question})
 
-        # OpenAI 답변 요청
+        # OpenAI 답변 요청 (채팅도 gpt-4o-mini로 통일)
         with st.chat_message("ai"):
             with st.spinner("AI 셰프가 답변을 작성 중입니다..."):
                 chat_response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
+                    model="gpt-4o-mini",
                     messages=st.session_state.chat_history
                 )
                 bot_reply = chat_response.choices[0].message.content
@@ -155,7 +155,7 @@ if st.session_state.recipe:
 
         st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
 
-# 요리 기록장
+# 7. 요리 기록장
 st.markdown("---")
 st.subheader("📝 나만의 요리 기록장")
 st.caption("오늘 추천받아 만든 요리를 기록해 보세요!")
@@ -187,7 +187,7 @@ if st.button("💾 요리 기록 저장", use_container_width=True):
     except Exception as e:
         st.error(f"저장 실패: {e}")
 
-# 히스토리 출력
+# 8. 히스토리 출력
 if os.path.exists(CSV_FILE):
     history_df = pd.read_csv(CSV_FILE)
     if not history_df.empty:
