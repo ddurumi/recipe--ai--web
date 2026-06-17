@@ -60,7 +60,7 @@ if submit_button:
     if user_ingredients:
         with st.spinner(f"AI 셰프가 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
-                # 알레르기 경고를 독립적이고 강력한 블록으로 분리하여 프롬프트 최상단에 주입
+                # 알레르기 경고 블록
                 allergy_block = ""
                 if user_allergies:
                     allergy_block = f"""
@@ -97,6 +97,7 @@ if submit_button:
 
                 [출력 형식]
                 - 요리 이름: (여기에 식당 메뉴판 스타일의 간결한 이름만 적을 것)
+                - 예상 영양성분: (칼로리: XXXkcal | 탄수화물: XXg | 단백질: XXg | 지방: XXg 형식으로 기호문자와 콜론을 맞춰 반드시 한 줄로만 작성할 것. 수치는 현실적인 예상치를 계산해서 적어줄 것)
                 - 추천 이유: (아주 상세하게)
                 - 🍶 찰떡궁합 편의점 주류/음료 페어링:
                 - 필요한 추가 기본 양념: (정확한 스푼 계량 포함)
@@ -134,6 +135,31 @@ if submit_button:
 if st.session_state.recipe:
     st.success("🎉 완벽한 레시피를 찾았습니다!")
     
+    # 📊 영양성분 텍스트 파싱 처리
+    num_kcal, num_carbo, num_protein, num_fat = "계산 불가", "계산 불가", "계산 불가", "계산 불가"
+    for line in st.session_state.recipe.split("\n"):
+        if "예상 영양성분:" in line:
+            try:
+                raw_content = line.split("예상 영양성분:")[1]
+                sub_parts = raw_content.split("|")
+                for part in sub_parts:
+                    if "칼로리" in part: num_kcal = part.split(":")[1].strip()
+                    elif "탄수화물" in part: num_carbo = part.split(":")[1].strip()
+                    elif "단백질" in part: num_protein = part.split(":")[1].strip()
+                    elif "지방" in part: num_fat = part.split(":")[1].strip()
+            except:
+                pass
+            break
+
+    # 📊 시각적인 영양성분 대시보드 배치
+    st.markdown("### 📊 추천 요리 예상 영양성분 대시보드")
+    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
+    metric_col1.metric("🔥 칼로리", num_kcal)
+    metric_col2.metric("🍞 탄수화물", num_carbo)
+    metric_col3.metric("🥩 단백질", num_protein)
+    metric_col4.metric("🥑 지방", num_fat)
+    st.markdown("---")
+    
     with st.container():
         st.info(st.session_state.recipe)
         youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
@@ -142,19 +168,17 @@ if st.session_state.recipe:
     st.markdown("---")
     st.subheader("💬 AI 셰프에게 추가 질문하기")
 
-    # 추가 질문 대화 내역 출력 (첫 레시피 출력은 위에서 했으므로 제외)
+    # 추가 질문 대화 내역 출력
     for msg in st.session_state.chat_history[1:]:
         role = "ai" if msg["role"] == "assistant" else "user"
         with st.chat_message(role):
             st.markdown(msg["content"])
 
     if user_question := st.chat_input("질문을 입력하세요..."):
-        # 사용자 질문 화면 표시 및 메모리 저장
         with st.chat_message("user"):
             st.markdown(user_question)
         st.session_state.chat_history.append({"role": "user", "content": user_question})
 
-        # OpenAI 답변 요청
         with st.chat_message("ai"):
             with st.spinner("AI 셰프가 답변을 작성 중입니다..."):
                 chat_response = client.chat.completions.create(
@@ -171,7 +195,6 @@ st.markdown("---")
 st.subheader("📝 나만의 요리 기록장")
 st.caption("오늘 추천받아 만든 요리를 기록해 보세요!")
 
-# ✍️ 요리 이름 직접 입력창 추가 (기본값으로 AI가 찾은 요리 이름 세팅)
 default_dish = st.session_state.search_query if st.session_state.search_query else ""
 record_dish_name = st.text_input("🍲 요리 이름", value=default_dish, placeholder="예: 대패삼겹 두부김치")
 
@@ -186,14 +209,13 @@ with col_star:
 user_review = st.text_input("✍️ 맛 평가 및 한줄평을 적어주세요", placeholder="예: 진짜 백종원 맛이 나요! 최고최고")
 
 if st.button("💾 요리 기록 저장", use_container_width=True):
-    # 빈칸 검사 로직 추가
     if not record_dish_name.strip():
         st.warning("요리 이름을 입력해 주세요!")
     else:
         try:
             new_data = {
                 "날짜": str(selected_date),
-                "요리이름": record_dish_name,  # 사용자가 입력/수정한 이름을 저장
+                "요리이름": record_dish_name,
                 "별점": star_rating,
                 "한줄평": user_review
             }
