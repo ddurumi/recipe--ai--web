@@ -88,7 +88,7 @@ if submit_button:
                 [중요 지시사항]
                 - 요리 초보자도 완벽하게 따라 할 수 있도록 '조리 순서'를 아주아주 상세하고 길게 설명해 줘. (예: 불 조절, 볶는 시간 등 구체적으로)
                 - '추천 이유'도 군침이 싹 돌게 아주 풍부하고 맛깔나게 3줄 이상 작성해 줘.
-                - 요리 이름에는 입력된 재료명을 구구절절 나열하지 마라. 식당 메뉴판에 등장하는 '제육볶음', '두부김치', '부대찌개'처럼 **대중적이고 간결한 실제 요리 이름 딱 하나**만 지정해 줘. (예: 삼겹살 김치 대파 두부 볶음 (X) -> 두부김치 (O))
+                - 요리 이름에는 입력된 재료명을 구구절절 나열하지 마라. 식당 메뉴판에 등장하는 '제육볶음', '두부김치', '부대찌개'처럼 **대중적이고 간결한 실제 요리 이름 딱 하나**만 지정해 줘.
                 - 🚨 육회, 생선회처럼 생으로 먹는 재료가 입력되면 절대 가열하거나 볶지 말고 본연의 맛을 살려줘.
                 - 🚨 재료의 상식을 벗어나는 괴식이나 파괴적인 조리법(예: 육회 볶기, 과일 끓이기 등)은 절대 금지!
                 
@@ -103,7 +103,7 @@ if submit_button:
                 - 조리 순서: (1번, 2번... 단계별로 아주 구체적이고 길게 설명)
                 """
 
-                # 최신 고성능 gpt-4o-mini 모델 사용 (오타 수정 완료)
+                # 최신 고성능 gpt-4o-mini 모델 사용
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}]
@@ -154,7 +154,7 @@ if st.session_state.recipe:
             st.markdown(user_question)
         st.session_state.chat_history.append({"role": "user", "content": user_question})
 
-        # OpenAI 답변 요청 (채팅도 gpt-4o-mini 모델로 통일)
+        # OpenAI 답변 요청
         with st.chat_message("ai"):
             with st.spinner("AI 셰프가 답변을 작성 중입니다..."):
                 chat_response = client.chat.completions.create(
@@ -171,6 +171,10 @@ st.markdown("---")
 st.subheader("📝 나만의 요리 기록장")
 st.caption("오늘 추천받아 만든 요리를 기록해 보세요!")
 
+# ✍️ 요리 이름 직접 입력창 추가 (기본값으로 AI가 찾은 요리 이름 세팅)
+default_dish = st.session_state.search_query if st.session_state.search_query else ""
+record_dish_name = st.text_input("🍲 요리 이름", value=default_dish, placeholder="예: 대패삼겹 두부김치")
+
 col_date, col_star = st.columns(2)
 
 with col_date:
@@ -182,21 +186,23 @@ with col_star:
 user_review = st.text_input("✍️ 맛 평가 및 한줄평을 적어주세요", placeholder="예: 진짜 백종원 맛이 나요! 최고최고")
 
 if st.button("💾 요리 기록 저장", use_container_width=True):
-    current_dish = st.session_state.search_query if st.session_state.search_query else "추천 요리"
-
-    try:
-        new_data = {
-            "날짜": str(selected_date),
-            "요리이름": current_dish,
-            "별점": star_rating,
-            "한줄평": user_review
-        }
-        updated_df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-        updated_df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
-        st.success(f"🎉 '{current_dish}' 기록이 저장되었습니다!")
-        st.rerun()
-    except Exception as e:
-        st.error(f"저장 실패: {e}")
+    # 빈칸 검사 로직 추가
+    if not record_dish_name.strip():
+        st.warning("요리 이름을 입력해 주세요!")
+    else:
+        try:
+            new_data = {
+                "날짜": str(selected_date),
+                "요리이름": record_dish_name,  # 사용자가 입력/수정한 이름을 저장
+                "별점": star_rating,
+                "한줄평": user_review
+            }
+            updated_df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+            updated_df.to_csv(CSV_FILE, index=False, encoding="utf-8-sig")
+            st.success(f"🎉 '{record_dish_name}' 기록이 저장되었습니다!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"저장 실패: {e}")
 
 # 8. 히스토리 출력
 if os.path.exists(CSV_FILE):
