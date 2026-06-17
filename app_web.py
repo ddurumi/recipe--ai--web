@@ -44,16 +44,20 @@ with col2:
     st.subheader("🔥 요리 스타일")
     cooking_style = st.selectbox("어떤 스타일을 원하시나요?", ["초간단 자취생 요리", "건강한 다이어트식", "매콤한 술안주", "든든한 밥도둑"])
 
-# 👇 알레르기 입력창과 조리 시간 입력창을 나란히 배치 👇
-col3, col4 = st.columns([2, 1])
+# 👇 알레르기, 조리 시간, 인분 선택을 3개의 열로 나란히 배치 👇
+col3, col4, col5 = st.columns([2, 1, 1])
 
 with col3:
-    st.subheader("🚫 알레르기 및 기피 재료")
-    user_allergies = st.text_input("절대 들어가면 안 되는 재료 (선택)", placeholder="예: 오이, 땅콩, 갑각류 등")
+    st.subheader("🚫 기피/알레르기")
+    user_allergies = st.text_input("제외할 재료 (선택)", placeholder="예: 오이, 땅콩, 갑각류 등")
 
 with col4:
     st.subheader("⏱️ 조리 시간")
-    cooking_time = st.selectbox("얼마나 걸려도 되나요?", ["15분 이내 (스피드)", "30분 이내 (적당함)", "시간 제한 없음"])
+    cooking_time = st.selectbox("제한 시간", ["15분 이내", "30분 이내", "시간 제한 없음"])
+
+with col5:
+    st.subheader("🍽️ 인분 선택")
+    serving_size = st.selectbox("몇 인분인가요?", ["1인분 (혼밥)", "2인분 (둘이서)", "3~4인분 (파티용)"])
 # 👆 --------------------------------------------- 👆
 
 st.markdown("---")
@@ -66,8 +70,8 @@ with btn_col:
 # 5. 레시피 생성 (OpenAI 로직 적용)
 if submit_button:
     if user_ingredients:
-        # 로딩 스피너에도 조리 시간 문구를 센스있게 추가
-        with st.spinner(f"AI 셰프가 '{cooking_time}' 완성 가능한 '{cooking_style}' 레시피를 고민 중입니다..."):
+        # 로딩 스피너에 인분 조건 추가
+        with st.spinner(f"AI 셰프가 '{cooking_time}' 완성 가능한 '{serving_size}' 기준 '{cooking_style}' 레시피를 고민 중입니다..."):
             try:
                 # 알레르기 경고 블록
                 allergy_block = ""
@@ -80,13 +84,13 @@ if submit_button:
                 - 네가 출력하는 레시피 텍스트 안에 '{user_allergies}'라는 단어가 식재료로서 단 한 번이라도 등장하면 안 된다.
                     """
 
-                # 조리 시간 조건이 추가된 프롬프트
+                # 조리 시간 및 인분 조건이 추가된 프롬프트
                 prompt = f"""
                 너는 대한민국 백종원 스타일의 대중적이고 검증된 요리 전문가야.
                 {allergy_block}
 
                 사용자가 제시한 재료 [{user_ingredients}]를 바탕으로
-                반드시 [{cooking_style}] 스타일에 어울리며, **[{cooking_time}]** 안에 완성할 수 있는 현실적인 레시피를 추천해줘.
+                반드시 [{cooking_style}] 스타일에 어울리며, **[{cooking_time}]** 안에 완성할 수 있는 **[{serving_size}]** 분량의 현실적인 레시피를 추천해줘.
                 절대로 세상에 없는 괴식이나 실험적인 요리를 창작하면 안 돼.
 
                 [가장 중요한 규칙: 실존하는 레시피 제공]
@@ -96,9 +100,9 @@ if submit_button:
                 4. 제시된 재료 중 해당 요리의 정석 레시피와 도저히 어울리지 않는 재료가 있다면, 요리에 억지로 넣지 말고 과감히 제외해라.
                 
                 [중요 지시사항]
-                - 요리 초보자도 완벽하게 따라 할 수 있도록 '조리 순서'를 아주아주 상세하고 길게 설명해 줘. 특히 **[{cooking_time}]**이라는 조건에 맞게 조리 도구(전자레인지, 에어프라이어 등)나 시간 단축 팁을 적극적으로 제안해 줘.
-                - '추천 이유'도 군침이 싹 돌게 아주 풍부하고 맛깔나게 3줄 이상 작성해 줘.
-                - 요리 이름에는 입력된 재료명을 구구절절 나열하지 마라. 식당 메뉴판에 등장하는 '제육볶음', '두부김치', '부대찌개'처럼 **대중적이고 간결한 실제 요리 이름 딱 하나**만 지정해 줘.
+                - 요리 초보자도 완벽하게 따라 할 수 있도록 '조리 순서'를 아주아주 상세하고 길게 설명해 줘. 특히 [{cooking_time}]이라는 조건에 맞게 조리 도구(전자레인지, 에어프라이어 등)나 시간 단축 팁을 제안해 줘.
+                - 🚨 요리의 주재료와 추가 양념 계량은 반드시 사용자가 선택한 **[{serving_size}]** 분량에 정확히 맞춰서 g(그램) 또는 스푼 단위로 구체적으로 계산해 줘. 대충 '적당량'이라고 적지 마라.
+                - 요리 이름에는 입력된 재료명을 구구절절 나열하지 마라. 식당 메뉴판에 등장하는 간결한 실제 요리 이름 딱 하나만 지정해 줘.
                 - 🚨 육회, 생선회처럼 생으로 먹는 재료가 입력되면 절대 가열하거나 볶지 말고 본연의 맛을 살려줘.
                 - 🚨 재료의 상식을 벗어나는 괴식이나 파괴적인 조리법(예: 육회 볶기, 과일 끓이기 등)은 절대 금지!
                 
@@ -107,10 +111,11 @@ if submit_button:
 
                 [출력 형식]
                 - 요리 이름: (여기에 식당 메뉴판 스타일의 간결한 이름만 적을 것)
+                - 기준 인분: (선택된 {serving_size}에 맞춰 표기)
                 - 예상 영양성분: (칼로리: XXXkcal | 탄수화물: XXg | 단백질: XXg | 지방: XXg 형식으로 기호문자와 콜론을 맞춰 반드시 한 줄로만 작성할 것. 수치는 현실적인 예상치를 계산해서 적어줄 것)
                 - 추천 이유: (아주 상세하게)
-                - 🍶 찰떡궁합 편의점 주류/음료 페어링:
-                - 필요한 추가 기본 양념: (정확한 스푼 계량 포함)
+                - 🍶 찰떡궁합 편의점 페어링:
+                - 필요한 재료 및 양념: (주재료와 추가 양념 모두 포함, {serving_size}에 맞춘 정확한 계량 필수)
                 - 조리 순서: (1번, 2번... 단계별로 아주 구체적이고 길게 설명)
                 """
 
@@ -173,13 +178,12 @@ if st.session_state.recipe:
     with st.container():
         st.info(st.session_state.recipe)
         
-        # 👇 추가된 부분: 유튜브 검색 버튼과 레시피 다운로드 버튼을 나란히 배치 👇
+        # 유튜브 검색 버튼과 레시피 다운로드 버튼을 나란히 배치
         col_yt, col_dl = st.columns(2)
         with col_yt:
             youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
             st.link_button(f"📺 유튜브 영상 검색", youtube_url, use_container_width=True)
         with col_dl:
-            # Streamlit의 다운로드 버튼 위젯 사용
             st.download_button(
                 label="💾 이 레시피 파일로 저장하기 (.txt)",
                 data=st.session_state.recipe,
@@ -187,7 +191,6 @@ if st.session_state.recipe:
                 mime="text/plain",
                 use_container_width=True
             )
-        # 👆 여기까지 👆
 
     st.markdown("---")
     st.subheader("💬 AI 셰프에게 추가 질문하기")
