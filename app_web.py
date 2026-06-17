@@ -33,6 +33,9 @@ if "chat_history" not in st.session_state:
 if "search_query" not in st.session_state:
     st.session_state.search_query = ""
 
+if "last_processed_voice" not in st.session_state:
+    st.session_state.last_processed_voice = None
+
 # 4. 입력 영역
 col1, col2 = st.columns([2, 1])
 
@@ -163,13 +166,27 @@ if st.session_state.recipe:
     with st.container():
         st.info(st.session_state.recipe)
         
-        # 👇 추가된 부분: 유튜브 검색 버튼과 레시피 다운로드 버튼을 나란히 배치 👇
+        # 🔊 메인 레시피 음성 듣기 기능
+        if st.button("🔊 AI 셰프 목소리로 레시피 듣기", use_container_width=True):
+            with st.spinner("목소리를 생성하고 있습니다..."):
+                try:
+                    speech_response = client.audio.speech.create(
+                        model="tts-1",
+                        voice="alloy",
+                        input=st.session_state.recipe
+                    )
+                    st.audio(speech_response.content, format="audio/mp3")
+                except Exception as e:
+                    st.error(f"음성 생성 실패: {e}")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # 하단 기능 버튼 레이아웃
         col_yt, col_dl = st.columns(2)
         with col_yt:
             youtube_url = f"https://www.youtube.com/results?search_query={st.session_state.search_query} 만들기"
             st.link_button(f"📺 유튜브 영상 검색", youtube_url, use_container_width=True)
         with col_dl:
-            # Streamlit의 다운로드 버튼 위젯 사용
             st.download_button(
                 label="💾 이 레시피 파일로 저장하기 (.txt)",
                 data=st.session_state.recipe,
@@ -177,10 +194,9 @@ if st.session_state.recipe:
                 mime="text/plain",
                 use_container_width=True
             )
-        # 👆 여기까지 👆
 
     st.markdown("---")
-    st.subheader("💬 AI 셰프에게 추가 질문하기")
+    st.subheader("💬 AI 셰프와 대화하기 (음성/텍스트 모두 가능)")
 
     # 추가 질문 대화 내역 출력
     for msg in st.session_state.chat_history[1:]:
@@ -188,10 +204,32 @@ if st.session_state.recipe:
         with st.chat_message(role):
             st.markdown(msg["content"])
 
-    if user_question := st.chat_input("질문을 입력하세요..."):
+    # 🎙️ [핵심 추가] 마이크 음성 입력 위젯 배치
+    voice_file = st.audio_input("🎙️ 말로 질문하기 (마이크 버튼을 누르고 말씀하세요)")
+    
+    active_question = None
+
+    # 새로운 음성 녹음 데이터가 들어왔을 때 Whisper API로 텍스트화
+    if voice_file and voice_file != st.session_state.last_processed_voice:
+        st.session_state.last_processed_voice = voice_file
+        with st.spinner("사용자님의 음성을 인식하는 중입니다..."):
+            try:
+                transcription = client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=voice_file
+                )
+                active_question = transcription.text
+            except Exception as e:
+                st.error(f"음성 인식에 실패했습니다: {e}")
+    else:
+        # 음성 입력이 없을 때는 기존의 텍스트 입력창 활성화
+        active_question = st.chat_input("또는 여기에 질문을 타이핑하세요...")
+
+    # 질문 처리 로직 (음성이든 텍스트든 질문이 활성화되면 작동)
+    if active_question:
         with st.chat_message("user"):
-            st.markdown(user_question)
-        st.session_state.chat_history.append({"role": "user", "content": user_question})
+            st.markdown(active_question)
+        st.session_state.chat_history.append({"role": "user", "content": active_question})
 
         with st.chat_message("ai"):
             with st.spinner("AI 셰프가 답변을 작성 중입니다..."):
@@ -201,6 +239,17 @@ if st.session_state.recipe:
                 )
                 bot_reply = chat_response.choices[0].message.content
                 st.markdown(bot_reply)
+                
+                # 답변을 자동으로 음성 변환하여 플레이어 출력
+                try:
+                    chat_speech = client.audio.speech.create(
+                        model="tts-1",
+                        voice="alloy",
+                        input=bot_reply
+                    )
+                    st.audio(chat_speech.content, format="audio/mp3")
+                except:
+                    pass
 
         st.session_state.chat_history.append({"role": "assistant", "content": bot_reply})
 
